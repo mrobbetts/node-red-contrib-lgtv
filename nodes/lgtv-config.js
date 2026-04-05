@@ -14,6 +14,8 @@ module.exports = function (RED) {
 
         const tvUrl = (node.secure ? 'wss://' : 'ws://') + node.host + (node.secure ? ':3001' : ':3000');
         let connectingTimer = null;
+        let reconnectTimer = null;
+        let connecting = false;
 
         const lgtvOpts = {
             url: tvUrl,
@@ -42,6 +44,7 @@ module.exports = function (RED) {
         const lgtv = require('lgtv2')(lgtvOpts);
 
         lgtv.on('connecting', () => {
+            connecting = true;
             node.setStatus('connecting');
             clearTimeout(connectingTimer);
             connectingTimer = setTimeout(() => {
@@ -52,11 +55,14 @@ module.exports = function (RED) {
 
         lgtv.on('connect', () => {
             clearTimeout(connectingTimer);
+            clearTimeout(reconnectTimer);
+            connecting = false;
             node.setStatus('connect');
             node.connected = true;
             node.emit('tvconnect');
 
             Object.keys(subscriptions).forEach(url => {
+                subscriptions[url]._active = true;
                 const payload = subscriptions[url]._payload;
                 if (payload) {
                     lgtv.subscribe(url, payload, (err, res) => {
@@ -78,14 +84,23 @@ module.exports = function (RED) {
             );
         });
 
+        function scheduleReconnect() {
+            clearTimeout(reconnectTimer);
+            connecting = false;
+            Object.keys(subscriptions).forEach(url => {
+                subscriptions[url]._active = false;
+            });
+            reconnectTimer = setTimeout(() => {
+                lgtv.connect(tvUrl);
+            }, 5000);
+        }
+
         lgtv.on('error', e => {
             clearTimeout(connectingTimer);
             node.connected = false;
             node.setStatus(e.code);
             node.emit('tvclose');
-            setTimeout(() => {
-                lgtv.connect(tvUrl);
-            }, 5000);
+            scheduleReconnect();
         });
 
         lgtv.on('close', () => {
@@ -94,9 +109,7 @@ module.exports = function (RED) {
             node.connected = false;
             node.buttonSocket = null;
             node.setStatus('close');
-            setTimeout(() => {
-                lgtv.connect(tvUrl);
-            }, 5000);
+            scheduleReconnect();
         });
 
         lgtv.on('prompt', () => {
@@ -106,7 +119,7 @@ module.exports = function (RED) {
         this.subscriptionHandler = function (url, err, res) {
             if (subscriptions[url]) {
                 Object.keys(subscriptions[url]).forEach(id => {
-                    if (id !== '_payload') {
+                    if (id[0] !== '_') {
                         subscriptions[url][id](err, res);
                     }
                 });
@@ -119,22 +132,27 @@ module.exports = function (RED) {
                 payload = undefined;
             }
 
-            if (!subscriptions[url]) {
-                subscriptions[url] = {_payload: payload};
-                if (node.connected) {
-                    if (payload) {
-                        lgtv.subscribe(url, payload, (err, res) => {
-                            node.subscriptionHandler(url, err, res);
-                        });
-                    } else {
-                        lgtv.subscribe(url, (err, res) => {
-                            node.subscriptionHandler(url, err, res);
-                        });
-                    }
-                }
+            const isNew = !subscriptions[url];
+
+            if (isNew) {
+                subscriptions[url] = {_payload: payload, _active: false};
             }
 
             subscriptions[url][id] = callback;
+
+            if (node.connected && !subscriptions[url]._active) {
+                subscriptions[url]._active = true;
+                const p = subscriptions[url]._payload;
+                if (p) {
+                    lgtv.subscribe(url, p, (err, res) => {
+                        node.subscriptionHandler(url, err, res);
+                    });
+                } else {
+                    lgtv.subscribe(url, (err, res) => {
+                        node.subscriptionHandler(url, err, res);
+                    });
+                }
+            }
         };
 
         this.request = function (url, payload, callback) {
@@ -144,11 +162,9 @@ module.exports = function (RED) {
         };
 
         this.reconnect = function () {
-            if (!node.connected) {
-                lgtv.disconnect();
-                setTimeout(() => {
-                    lgtv.connect(tvUrl);
-                }, 1000);
+            if (!node.connected && !connecting) {
+                clearTimeout(reconnectTimer);
+                lgtv.connect(tvUrl);
             }
         };
 
@@ -214,7 +230,7 @@ module.exports = function (RED) {
         if (!status || status === 'Close') {
             const secure = req.query.secure !== 'false';
             const pairUrl = (secure ? 'wss://' : 'ws://') + req.query.host + (secure ? ':3001' : ':3000');
-            lgtv = require('lgtv2')({
+            const pairOpts = {
                 url: pairUrl,
                 saveKey(key, cb) {
                     token = key;
@@ -225,7 +241,19 @@ module.exports = function (RED) {
                         cb();
                     }
                 }
-            });
+            };
+
+            if (secure) {
+                pairOpts.wsconfig = {
+                    keepalive: true,
+                    keepaliveInterval: 10000,
+                    dropConnectionOnKeepaliveTimeout: true,
+                    keepaliveGracePeriod: 5000,
+                    tlsOptions: {rejectUnauthorized: false}
+                };
+            }
+
+            lgtv = require('lgtv2')(pairOpts);
 
             status = 'Connecting';
 

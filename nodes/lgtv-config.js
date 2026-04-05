@@ -118,14 +118,19 @@ module.exports = function (RED) {
         // the sole reconnect mechanism — error/close handlers just
         // update state, and this interval picks it up.
         const reconnectInterval = setInterval(() => {
-            if (!node.connected && !connecting) {
-                if (lgtv.connection) {
-                    // lgtv2 still thinks it's connected but we don't — force cleanup
-                    node.warn('Stale lgtv2 connection state, forcing disconnect');
-                    lgtv.disconnect();
-                } else {
-                    lgtv.connect(tvUrl);
-                }
+            if (node.connected || connecting) {
+                return;
+            }
+
+            node.warn('Reconnect: connected=' + node.connected +
+                ' connecting=' + connecting +
+                ' lgtv.connection=' + lgtv.connection);
+
+            if (lgtv.connection) {
+                // lgtv2 still thinks it's connected but we don't — force cleanup
+                lgtv.disconnect();
+            } else {
+                lgtv.connect(tvUrl);
             }
         }, 5000);
 

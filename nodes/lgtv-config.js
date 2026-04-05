@@ -14,11 +14,11 @@ module.exports = function (RED) {
 
         const tvUrl = (node.secure ? 'wss://' : 'ws://') + node.host + (node.secure ? ':3001' : ':3000');
         let connectingTimer = null;
-        let reconnectTimer = null;
         let connecting = false;
 
         const lgtvOpts = {
             url: tvUrl,
+            reconnect: false,
             clientKey: node.credentials.token,
             saveKey(key, cb) {
                 token = key;
@@ -50,13 +50,12 @@ module.exports = function (RED) {
             connectingTimer = setTimeout(() => {
                 node.warn('Connection stuck, forcing retry');
                 lgtv.disconnect();
-                scheduleReconnect();
+                connecting = false;
             }, 30000);
         });
 
         lgtv.on('connect', () => {
             clearTimeout(connectingTimer);
-            clearTimeout(reconnectTimer);
             connecting = false;
             node.setStatus('connect');
             node.connected = true;
@@ -85,36 +84,48 @@ module.exports = function (RED) {
             );
         });
 
-        function scheduleReconnect() {
-            clearTimeout(reconnectTimer);
-            connecting = false;
-            Object.keys(subscriptions).forEach(url => {
-                subscriptions[url]._active = false;
-            });
-            reconnectTimer = setTimeout(() => {
-                lgtv.connect(tvUrl);
-            }, 5000);
-        }
-
         lgtv.on('error', e => {
             clearTimeout(connectingTimer);
+            connecting = false;
             node.connected = false;
             node.setStatus(e.code);
             node.emit('tvclose');
-            scheduleReconnect();
+            Object.keys(subscriptions).forEach(url => {
+                subscriptions[url]._active = false;
+            });
         });
 
         lgtv.on('close', () => {
             clearTimeout(connectingTimer);
-            node.emit('tvclose');
+            connecting = false;
             node.connected = false;
             node.buttonSocket = null;
             node.setStatus('close');
-            scheduleReconnect();
+            node.emit('tvclose');
+            Object.keys(subscriptions).forEach(url => {
+                subscriptions[url]._active = false;
+            });
         });
 
         lgtv.on('prompt', () => {
             node.setStatus('prompt');
+        });
+
+        // Reconnect interval: periodically checks if disconnected and
+        // not already connecting, and initiates a reconnect. This is
+        // the sole reconnect mechanism — error/close handlers just
+        // update state, and this interval picks it up.
+        const reconnectInterval = setInterval(() => {
+            if (!node.connected && !connecting) {
+                lgtv.connect(tvUrl);
+            }
+        }, 5000);
+
+        node.on('close', done => {
+            clearInterval(reconnectInterval);
+            clearTimeout(connectingTimer);
+            lgtv.disconnect();
+            done();
         });
 
         this.subscriptionHandler = function (url, err, res) {
@@ -164,7 +175,6 @@ module.exports = function (RED) {
 
         this.reconnect = function () {
             if (!node.connected && !connecting) {
-                clearTimeout(reconnectTimer);
                 lgtv.connect(tvUrl);
             }
         };

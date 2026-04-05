@@ -50,6 +50,7 @@ module.exports = function (RED) {
             connectingTimer = setTimeout(() => {
                 node.warn('Connection stuck, forcing retry');
                 lgtv.disconnect();
+                scheduleReconnect();
             }, 30000);
         });
 

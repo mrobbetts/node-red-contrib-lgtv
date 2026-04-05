@@ -87,12 +87,14 @@ module.exports = function (RED) {
         lgtv.on('error', e => {
             clearTimeout(connectingTimer);
             connecting = false;
-            node.connected = false;
-            node.setStatus(e.code);
-            node.emit('tvclose');
-            Object.keys(subscriptions).forEach(url => {
-                subscriptions[url]._active = false;
-            });
+            const code = e.code || e.message || String(e);
+            node.warn('TV error: ' + code);
+            // Only update status if not connected — don't overwrite
+            // green status for non-fatal errors (JSON parse, saveKey, etc.)
+            // that fire while the WebSocket is still alive.
+            if (!node.connected) {
+                node.setStatus(code);
+            }
         });
 
         lgtv.on('close', () => {
@@ -117,7 +119,13 @@ module.exports = function (RED) {
         // update state, and this interval picks it up.
         const reconnectInterval = setInterval(() => {
             if (!node.connected && !connecting) {
-                lgtv.connect(tvUrl);
+                if (lgtv.connection) {
+                    // lgtv2 still thinks it's connected but we don't — force cleanup
+                    node.warn('Stale lgtv2 connection state, forcing disconnect');
+                    lgtv.disconnect();
+                } else {
+                    lgtv.connect(tvUrl);
+                }
             }
         }, 5000);
 

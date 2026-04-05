@@ -36,7 +36,8 @@
       "lgtv-volume": "nodes/lgtv-volume.js",
       "lgtv-mute": "nodes/lgtv-mute.js",
       "lgtv-channel": "nodes/lgtv-channel.js",
-      "lgtv-request": "nodes/lgtv-request.js"
+      "lgtv-request": "nodes/lgtv-request.js",
+      "lgtv-subscribe": "nodes/lgtv-subscribe.js"
     }
   },
   "devDependencies": {

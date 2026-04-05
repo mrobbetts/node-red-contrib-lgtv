@@ -1,0 +1,50 @@
+<script type="text/javascript">
+    RED.nodes.registerType('lgtv-subscribe', {
+        category: 'LGTV',
+        color: '#C0DEED',
+        defaults: {
+            name: {value: ''},
+            tv: {value: '', type: 'lgtv-config', required: true},
+            url: {value: ''},
+            payload: {value: ''}
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: 'icons/lgtv.png',
+        label: function () {
+            return this.name || this.url || 'lgtv subscribe';
+        }
+    });
+</script>
+
+<script type="text/x-red" data-template-name="lgtv-subscribe">
+    <div class="form-row">
+        <label for="node-input-tv"><i class="fa fa-tv"></i> TV</label>
+        <input type="text" id="node-input-tv">
+    </div>
+    <div class="form-row">
+        <label for="node-input-url"><i class="fa fa-link"></i> URL</label>
+        <input type="text" id="node-input-url" placeholder="ssap://com.webos.service.tvpower/power/getPowerState">
+    </div>
+    <div class="form-row">
+        <label for="node-input-payload"><i class="fa fa-envelope"></i> Payload</label>
+        <input type="text" id="node-input-payload" placeholder='{"category": "picture", "keys": ["pictureMode"]}'>
+    </div>
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name">
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="lgtv-subscribe">
+    <p>Subscribe to an SSAP endpoint on the TV. Unlike the request node, this receives
+    push updates whenever the TV state changes.</p>
+    <p>Set the URL and optional payload in the node config for auto-subscribe on connect,
+    or send a message with <code>msg.topic</code> and <code>msg.payload</code> to subscribe dynamically.</p>
+    <h3>Example URLs</h3>
+    <ul>
+        <li><code>ssap://com.webos.service.tvpower/power/getPowerState</code> — power state changes</li>
+        <li><code>ssap://com.webos.applicationManager/getForegroundAppInfo</code> — app changes</li>
+        <li><code>ssap://audio/getVolume</code> — volume/mute changes</li>
+    </ul>
+</script>

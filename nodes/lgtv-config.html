@@ -5,6 +5,12 @@
             host: {
                 value: 'lgwebostv',
                 required: true
+            },
+            secure: {
+                value: true
+            },
+            verifycert: {
+                value: false
             }
         },
         credentials: {
@@ -19,6 +25,17 @@
             const nodeId = this.id;
             let timeout;
             $('#node-config-dialog-ok').button('option', 'disabled', true);
+
+            function toggleVerifyCert() {
+                if ($('#node-config-input-secure').val() === 'true') {
+                    $('#verifycert-row').show();
+                } else {
+                    $('#verifycert-row').hide();
+                }
+            }
+
+            $('#node-config-input-secure').on('change', toggleVerifyCert);
+            toggleVerifyCert();
             $('#lgtv-connect').button().click(() => {
                 $('#lgtv-connect').button('option', 'disabled', true);
                 $('#lgtv-spinner').removeClass('hide');
@@ -30,7 +47,7 @@
             });
 
             function pollConnection() {
-                $.getJSON('lgtv-connect/?id=' + nodeId + '&host=' + $('#node-config-input-host').val(), data => {
+                $.getJSON('lgtv-connect/?id=' + nodeId + '&host=' + $('#node-config-input-host').val() + '&secure=' + $('#node-config-input-secure').val(), data => {
                     $('#lgtv-state').html(data.state);
                     if (data.token) {
                         $('#node-config-dialog-ok').button('option', 'disabled', false);
@@ -53,6 +70,18 @@
     <div class="form-row">
         <label for="node-config-input-host"><i class="icon-bookmark"></i> Host</label>
         <input type="text" id="node-config-input-host">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-secure"><i class="icon-lock"></i> Protocol</label>
+        <select id="node-config-input-secure" style="width:70%">
+            <option value="true">wss (port 3001) — WebOS 5+</option>
+            <option value="false">ws (port 3000) — WebOS 4 and earlier</option>
+        </select>
+    </div>
+    <div class="form-row" id="verifycert-row">
+        <label for="node-config-input-verifycert"><i class="icon-lock"></i> Verify TLS</label>
+        <input type="checkbox" id="node-config-input-verifycert" style="width:auto">
+        <span style="margin-left:5px">Verify TV certificate (most TVs use self-signed certs)</span>
     </div>
     <div class="form-row">
         <label for="node-config-input-token"><i class="icon-bookmark"></i> Token</label>

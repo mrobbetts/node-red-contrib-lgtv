@@ -21,7 +21,7 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "lgtv2": "^1.4.1"
+    "lgtv2": "github:mrobbetts/lgtv2"
   },
   "node-red": {
     "nodes": {

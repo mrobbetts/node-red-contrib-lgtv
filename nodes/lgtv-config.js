@@ -48,8 +48,7 @@ module.exports = function (RED) {
             node.setStatus('connecting');
             clearTimeout(connectingTimer);
             connectingTimer = setTimeout(() => {
-                node.warn('Connection stuck, forcing retry');
-                lgtv.disconnect();
+                node.warn('Connection attempt timed out, will retry');
                 connecting = false;
             }, 30000);
         });
@@ -59,6 +58,7 @@ module.exports = function (RED) {
             connecting = false;
             node.setStatus('connect');
             node.connected = true;
+            node.log('TV connected');
             node.emit('tvconnect');
 
             Object.keys(subscriptions).forEach(url => {
@@ -103,6 +103,7 @@ module.exports = function (RED) {
             node.connected = false;
             node.buttonSocket = null;
             node.setStatus('close');
+            node.log('TV disconnected');
             node.emit('tvclose');
             Object.keys(subscriptions).forEach(url => {
                 subscriptions[url]._active = false;
